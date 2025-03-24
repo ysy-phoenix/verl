@@ -13,6 +13,7 @@ import rich
 from verl.utils.hdfs_io import copy, makedirs
 from verl.utils.reward_score.code.code_exec import code_exec
 
+MAX_PROMPT_LENGTH = 8192
 N_TESTSET_PER_DATASET = 512  # per dataset
 LEETCODE_DATASET_PATH = "~/data/LeetCodeDataset/LeetCodeDataset-v2-{}-problems.jsonl"
 _EMPTY_RETURN_ = {
@@ -140,28 +141,6 @@ for i, o in zip(_inputs, _outputs):
                 if len(stdin_list) == 0:
                     return _EMPTY_RETURN_
 
-                # with ThreadPoolExecutor(max_workers=min(len(stdin_list), 8)) as executor:
-                #     futures = []
-                #     for stdin, stdout in zip(stdin_list, stdout_list):
-                #         futures.append(executor.submit(
-                #             code_exec,
-                #             example["solutions"][-1],
-                #             stdin,
-                #             stdout,
-                #         ))
-                #     for future in as_completed(futures):
-                #         exec_succ, output, stdin, stdout = future.result()
-                #         pass_test = exec_succ and output.strip() == stdout.strip()
-                #         if not pass_test:
-                #             rich.print(f"[bold red]Test code failed for {source}")
-                #             print(example["solutions"][-1])
-                #             print(f"{exec_succ = }")
-                #             print(f"{stdin = }", f"{stdout = }")
-                #             if output.startswith(_ERROR_MSG_PREFIX):
-                #                 print("output = \n", output)
-                #             else:
-                #                 print(f"{output = }")
-                #             return _EMPTY_RETURN_
                 result = code_exec(example["solutions"][-1], stdin_list, stdout_list)
                 if result["status"] != "accepted":
                     rich.print(f"[bold red]Test code failed for {source}")
@@ -174,6 +153,11 @@ for i, o in zip(_inputs, _outputs):
                 raise ValueError(f"Unknown ground truth format: {oracle}")
 
             prompt = "\n".join(prompt_pieces)
+
+            # Check prompt length, filter out if too long
+            if len(prompt) > MAX_PROMPT_LENGTH:
+                return _EMPTY_RETURN_
+
             return {
                 "data_source": "code",
                 "prompt": [
@@ -255,6 +239,11 @@ def leetcode2k():
     def make_map_fn(split):
         def process_fn(example, idx):
             prompt = f"Please solve the programming task below using a self-contained code snippet in a markdown code block.\n\n{example['meta']['query'].strip()}"
+
+            # Filter out examples with prompts that are too long
+            if len(prompt) > MAX_PROMPT_LENGTH:
+                return _EMPTY_RETURN_
+
             return {
                 "data_source": "code",
                 "prompt": [
