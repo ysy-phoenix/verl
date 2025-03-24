@@ -68,9 +68,9 @@ python3 -m verl.trainer.main_ppo \
     trainer.critic_warmup=0 \
     trainer.logger=['wandb','console'] \
     trainer.project_name='code-r1' \
-    trainer.experiment_name=${DATASET}-grpo \
+    trainer.experiment_name=Qwen2.5-Coder-7B-Instruct-grpo \
     trainer.nnodes=1 \
-    trainer.default_local_dir=./models/${DATASET}-grpo \
+    trainer.default_local_dir=$HOME/models/${DATASET}-grpo \
     trainer.n_gpus_per_node=$GPUS_PER_NODE \
     trainer.save_freq=256 \
     trainer.test_freq=16 \

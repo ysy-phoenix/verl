@@ -39,7 +39,9 @@ async def single_compute_score(evaluation_func, completion, reference, task, tas
         print(f"Timeout occurred for completion: {completion}")
         return None  # Default value for timed-out rows
     except Exception as e:
-        print(f"Error processing completion: {completion[:10]}, Error: {e}")
+        # print(f"Error processing completion: {completion[:10]}, Error: {e}")
+        import traceback
+        traceback.print_exc()
         return None  # Default value for failed rows
 
 
@@ -102,6 +104,7 @@ class PrimeRewardManager:
         sequences_str = self.tokenizer.batch_decode(response_ids, skip_special_tokens=True)
         ground_truth = [data_item.non_tensor_batch['reward_model']['ground_truth'] for data_item in data]
         data_sources = data.non_tensor_batch['data_source']
+        extra_infos = [data_item.non_tensor_batch.get('extra_info', None) for data_item in data]
 
         assert len(sequences_str) == len(ground_truth) == len(data_sources)
         try:
@@ -110,6 +113,7 @@ class PrimeRewardManager:
                                              sequences_str,
                                              ground_truth,
                                              data_sources,
+                                             extra_infos,
                                              num_processes=64))
         except asyncio.TimeoutError as e:
             print('Global timeout in reward computing! Setting all as 0.')

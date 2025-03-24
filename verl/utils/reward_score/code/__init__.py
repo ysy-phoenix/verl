@@ -69,31 +69,26 @@ def _compute_score(
 
     if "functional" in ground_truth:
         result = code_exec(solution_code + "\n" + ground_truth["functional"])
-        if result["status"] != "accepted":
-            reward_log.append(
-                "!" * 16
-                + f"⚠️ Test Execution Failed in {time.time() - t_start:.1f}s"
-                + "!" * 16
-            )
-            reward_log.append(result["error_message"])
-            reward_log.append("-" * 16 + "Failed Prompt" + "-" * 16)
-            reward_log.append(extra_info["prompt"].replace("\n\n", "\n"))
-            return format_reward, "\n".join(reward_log)
     elif "inputs" in ground_truth and "outputs" in ground_truth:
         stdin_list: str = ground_truth["inputs"]
         stdout_list: str = ground_truth["outputs"]
         result = code_exec(solution_code, inputs=stdin_list, outputs=stdout_list)
-        if result["status"] != "accepted":
-            reward_log.append(
-                "!" * 16
-                + f"⚠️ Test Execution Failed in {time.time() - t_start:.1f}s"
-                + "!" * 16
-            )
-            reward_log.append(result["error_message"])
-            reward_log.append("-" * 16 + "Failed Prompt" + "-" * 16)
-            reward_log.append(extra_info["prompt"].replace("\n\n", "\n"))
-            return format_reward, "\n".join(reward_log)
-    else:
+    if result["status"] != "accepted":
+        reward_log.append(
+            "!" * 16
+            + f"⚠️ Test Execution Failed in {time.time() - t_start:.1f}s"
+            + "!" * 16
+        )
+        if result["error_message"]:
+            reward_log.append(f"Error:\n{result['error_message']}")
+        reward_log.append("-" * 16 + "Failed Prompt" + "-" * 16)
+        reward_log.append(extra_info["prompt"].replace("\n\n", "\n"))
+        return format_reward, "\n".join(reward_log)
+    if (
+        "functional" not in ground_truth
+        and "inputs" not in ground_truth
+        and "outputs" not in ground_truth
+    ):
         raise ValueError(
             f"Current supports for ground-truth are ['functional', 'inputs/outputs'] -- No idea what's: {ground_truth = }"
         )
