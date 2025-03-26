@@ -68,7 +68,10 @@ def _compute_score(
         reward_log.append(solution_code)
 
     if "functional" in ground_truth:
-        result = code_exec(solution_code + "\n" + ground_truth["functional"])
+        code = solution_code + "\n" + ground_truth["functional"]
+        if extra_info.get("starter_code", None) is not None:
+            code = extra_info["starter_code"] + "\n" + code
+        result = code_exec(code)
     elif "inputs" in ground_truth and "outputs" in ground_truth:
         stdin_list: str = ground_truth["inputs"]
         stdout_list: str = ground_truth["outputs"]

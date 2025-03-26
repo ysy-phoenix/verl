@@ -24,20 +24,14 @@ bash examples/mini/run_qwen2_5-7b_math.sh
 ### code-r1
 ```bash
 huggingface-cli download Qwen/Qwen2.5-Coder-7B-Instruct --local-dir $HOME/models/Qwen2.5-Coder-7B-Instruct
-git clone https://github.com/newfacade/LeetCodeDataset.git
-cd LeetCodeDataset && git checkout f3519e6
-mkdir -p $HOME/data/LeetCodeDataset
-for split in test rl sft; do
-    cp data/LeetCodeDataset-v2-${split}-problems.jsonl $HOME/data/LeetCodeDataset/
-done
-python examples/data_preprocess/code/coder1.py --root_dir $HOME/data/ --hdfs_dir $HOME/data/
+python examples/data_preprocess/code/coder1.py --root_dir $HOME/data/ --hdfs_dir $HOME/data/ # 3 minutes
 # Train set: Dataset({
-#     features: ['task_id', 'prompt', 'entry_point', 'test', 'completion', 'examples', 'src', 'meta', 'data_source', 'ability', 'reward_model', 'extra_info'],
-#     num_rows: 12285
+#     features: ['prompt', 'data_source', 'ability', 'reward_model', 'extra_info'],
+#     num_rows: 12677
 # })
 # Test set: Dataset({
-#     features: ['task_id', 'prompt', 'entry_point', 'test', 'completion', 'examples', 'src', 'meta', 'data_source', 'ability', 'reward_model', 'extra_info'],
-#     num_rows: 712
+#     features: ['prompt', 'data_source', 'ability', 'reward_model', 'extra_info'],
+#     num_rows: 750
 # })
 bash examples/mini/run_coder1.sh
 ```

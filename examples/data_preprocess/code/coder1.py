@@ -12,10 +12,11 @@ import rich
 
 from verl.utils.hdfs_io import copy, makedirs
 from verl.utils.reward_score.code.code_exec import code_exec
+from examples.data_preprocess.code.utils import check_code_with_ast
 
-MAX_PROMPT_LENGTH = 8192
+MAX_PROMPT_LENGTH = 6000
+MAX_CODE_LENGTH = 10000
 N_TESTSET_PER_DATASET = 512  # per dataset
-LEETCODE_DATASET_PATH = "~/data/LeetCodeDataset/LeetCodeDataset-v2-{}-problems.jsonl"
 _EMPTY_RETURN_ = {
     "data_source": None,
     "prompt": None,
@@ -25,7 +26,16 @@ _EMPTY_RETURN_ = {
 }
 
 
-def minimize_stdio(inputs, outputs, max_n_tests=8):
+def get_solution(solutions: list[str]) -> str | None:
+    for solution in solutions:
+        if len(solution) > MAX_CODE_LENGTH:
+            continue
+        if check_code_with_ast(solution):
+            return solution
+    return None
+
+
+def minimize_stdio(inputs, outputs, max_n_tests=64):
     stdin_list = []
     stdout_list = []
     for stdin, stdout in zip(inputs, outputs):
@@ -54,7 +64,20 @@ The user will ask you a question and you as the assistant solve it. \
 The assistant first thinks how to solve the task through reasoning and then provides the user with the final answer. \
 The reasoning process and answer are enclosed within <think>...</think> and <answer>...</answer> tags, respectively."""
 
-PY_IMPORTS = "import heapq\nfrom math import floor, gcd\nimport random\nimport sys\nfrom typing import *\nfrom functools import *\nimport collections\nfrom collections import *\nfrom itertools import *\nfrom heapq import *\nfrom bisect import *\nfrom string import *\nimport math\nimport datetime\ninf = float('inf')\n"
+TEST_CODE = """
+_inputs = {inputs}
+_outputs = {outputs}
+import math
+def _deep_eq(a, b, tol=1e-5):
+    if isinstance(a, float) or isinstance(b, float):
+        return math.isclose(a, b, rel_tol=tol, abs_tol=tol)
+    if isinstance(a, (list, tuple)):
+        if len(a) != len(b): return False
+        return all(_deep_eq(x, y, tol) for x, y in zip(a, b))
+    return a == b
+
+for i, o in zip(_inputs, _outputs):
+"""
 
 
 # this dataset is super noisy and needs code execution to verify the tasks
@@ -91,40 +114,25 @@ def taco():
                 prompt_pieces.append(
                     f"```python\n{example['starter_code'].strip()}\n```"
                 )
+            code = get_solution(example["solutions"])
+            if code is None:
+                return _EMPTY_RETURN_
 
-            ##
-            ## Customization
-            ##
             if "fn_name" in oracle:  # the dataset is too noisy
                 fn_name = oracle["fn_name"]
-                if source == "leetcode":
-                    fn_name = "Solution()." + fn_name
 
-                test_code = f"""\
-_inputs = {oracle["inputs"]}
-_outputs = {oracle["outputs"]}
-import math
-def _deep_eq(a, b, tol=1e-5):
-    if isinstance(a, float) or isinstance(b, float):
-        return math.isclose(a, b, rel_tol=tol, abs_tol=tol)
-    if isinstance(a, (list, tuple)):
-        if len(a) != len(b): return False
-        return all(_deep_eq(x, y, tol) for x, y in zip(a, b))
-    return a == b
+                test_code = TEST_CODE.format(
+                    inputs=oracle["inputs"], outputs=oracle["outputs"]
+                )
 
-for i, o in zip(_inputs, _outputs):
-"""
-
-                if source in ["leetcode", "hackerrank"]:
-                    test_code += f"    assert _deep_eq({fn_name}(*i), o)"
+                if source in ["hackerrank"]:
+                    test_code += f"    assert _deep_eq({fn_name}(*i), o)\n"
                 elif source == "codewars":
-                    test_code += f"    assert _deep_eq({fn_name}(*i), o[0])"
+                    test_code += f"    assert _deep_eq({fn_name}(*i), o[0])\n"
                 else:
                     raise ValueError(f"Unknown source: {source}")
 
-                _check_test = example["solutions"][-1] + "\n" + test_code
-                if source in ["leetcode"]:
-                    _check_test = PY_IMPORTS + _check_test
+                _check_test = code + "\n" + test_code
 
                 result = code_exec(_check_test)
                 if result["status"] != "accepted":
@@ -134,17 +142,17 @@ for i, o in zip(_inputs, _outputs):
                     return _EMPTY_RETURN_
                 oracle = json.dumps({"functional": test_code})
                 assert example["starter_code"].strip() != ""
-            elif "inputs" in oracle and "outputs" in oracle:
+            elif "inputs" in oracle and "outputs" in oracle:  # ACM mode
                 stdin_list, stdout_list = minimize_stdio(
                     oracle["inputs"], oracle["outputs"]
                 )
                 if len(stdin_list) == 0:
                     return _EMPTY_RETURN_
 
-                result = code_exec(example["solutions"][-1], stdin_list, stdout_list)
+                result = code_exec(code, stdin_list, stdout_list)
                 if result["status"] != "accepted":
                     rich.print(f"[bold red]Test code failed for {source}")
-                    print(example["solutions"][-1])
+                    print(code)
                     print(result["error_message"])
                     return _EMPTY_RETURN_
 
@@ -173,9 +181,7 @@ for i, o in zip(_inputs, _outputs):
                     "split": split,
                     "index": idx,
                     "prompt": prompt,
-                    "reference": (
-                        example["solutions"][0] if example["solutions"] else ""
-                    ),
+                    "reference": code,
                     "dataset": "likaixin/TACO-verified",
                 },
             }
@@ -189,13 +195,12 @@ for i, o in zip(_inputs, _outputs):
         remove_columns=dataset.column_names,
     ).filter(lambda x: x != _EMPTY_RETURN_)
     splits = dataset.train_test_split(
-        test_size=max(1, min(N_TESTSET_PER_DATASET, len(dataset) * 0.1)), seed=666
+        test_size=max(1, min(N_TESTSET_PER_DATASET, int(len(dataset) * 0.1))), seed=666
     )
     train_dataset = splits["train"]
     test_dataset = splits["test"]
 
-    for t in dataset:
-        # print(f"{t = }")
+    for t in test_dataset:
         t["extra_info"]["split"] = "test"
 
     return train_dataset, test_dataset
@@ -203,42 +208,14 @@ for i, o in zip(_inputs, _outputs):
 
 def leetcode2k():
     rich.print(Rule("Loading LeetCodeDataset..."))
-    test_dataset = load_dataset(
-        "json", data_files=os.path.expanduser(LEETCODE_DATASET_PATH.format("test"))
-    )["train"]
-    print("Test set:", test_dataset)
-
-    train_dataset = concatenate_datasets(
-        [
-            load_dataset(
-                "json",
-                data_files=os.path.expanduser(LEETCODE_DATASET_PATH.format("rl")),
-            )["train"],
-            load_dataset(
-                "json",
-                data_files=os.path.expanduser(LEETCODE_DATASET_PATH.format("sft")),
-            )["train"],
-        ]
-    ).filter(
-        lambda example: example["meta"]["question_id"]
-        not in set([d["question_id"] for d in test_dataset["meta"]])
+    dataset = load_dataset(
+        "newfacade/LeetCodeDataset", split="train", trust_remote_code=True
     )
-    print("Before deduplication - Training set:", train_dataset)
-
-    first_time_idx = []
-    seen_question_ids = set()
-    for i, example in enumerate(train_dataset):
-        if example["meta"]["question_id"] not in seen_question_ids:
-            first_time_idx.append(i)
-            seen_question_ids.add(example["meta"]["question_id"])
-    train_dataset = train_dataset.select(first_time_idx)
-
-    print("After deduplication - Training set:", train_dataset)
 
     # add a row to each data item that represents a unique id
     def make_map_fn(split):
         def process_fn(example, idx):
-            prompt = f"Please solve the programming task below using a self-contained code snippet in a markdown code block.\n\n{example['meta']['query'].strip()}"
+            prompt = f"Please solve the programming task below using a self-contained code snippet in a markdown code block.\n\n{example['query'].strip()}"
 
             # Filter out examples with prompts that are too long
             if len(prompt) > MAX_PROMPT_LENGTH:
@@ -258,7 +235,7 @@ def leetcode2k():
                     "style": "rule",
                     "ground_truth": json.dumps(
                         {
-                            "functional": f"{example['test']}\n\ncheck({example['entry_point'].strip()})"
+                            "functional": f"{example['test']}\n\ncheck({example['entry_point'].strip()})\n"
                         }
                     ),
                 },
@@ -267,14 +244,28 @@ def leetcode2k():
                     "index": idx,
                     "reference": example["completion"],  # C++?
                     "prompt": prompt,
+                    "starter_code": example["prompt"],
                     "dataset": "LeetCodeDataset",
                 },
             }
 
         return process_fn
 
-    train_dataset = train_dataset.map(function=make_map_fn("train"), with_indices=True)
-    test_dataset = test_dataset.map(function=make_map_fn("test"), with_indices=True)
+    dataset = dataset.map(
+        function=make_map_fn("train"),
+        with_indices=True,
+        num_proc=64,
+        remove_columns=dataset.column_names,
+    ).filter(lambda x: x != _EMPTY_RETURN_)
+    splits = dataset.train_test_split(
+        test_size=max(1, min(N_TESTSET_PER_DATASET, int(len(dataset) * 0.1))), seed=666
+    )
+    train_dataset = splits["train"]
+    test_dataset = splits["test"]
+
+    for t in test_dataset:
+        t["extra_info"]["split"] = "test"
+
     return train_dataset, test_dataset
 
 
