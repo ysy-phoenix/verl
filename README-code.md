@@ -34,4 +34,14 @@ python examples/data_preprocess/code/coder1.py --root_dir $HOME/data/ --hdfs_dir
 #     num_rows: 750
 # })
 bash examples/mini/run_coder1.sh
+
+python scripts/model_merger.py --local_dir ~/models/code-r1-13k-leetcode2k-taco-grpo/global_step_2048/actor
+python -m sglang_router.launch_server --model-path $HOME/models/code-r1-13k-leetcode2k-taco-grpo/global_step_2048/actor/huggingface/ --dp 4
+
+evalhub run --model Qwen2.5-7B-Instruct --tasks humaneval --output-dir $HOME/metrics/code-r1-13k-leetcode2k-taco-grpo/global_step_2048/ -p temperature=0.6
+evalhub run --model Qwen2.5-7B-Instruct --tasks mbpp --output-dir $HOME/metrics/code-r1-13k-leetcode2k-taco-grpo/global_step_2048/ -p temperature=0.6
+evalplus.evaluate --dataset humaneval --samples $HOME/metrics/code-r1-13k-leetcode2k-taco-grpo/global_step_2048/humaneval.jsonl
+evalplus.evaluate --dataset mbpp --samples $HOME/metrics/code-r1-13k-leetcode2k-taco-grpo/global_step_2048/mbpp.jsonl
+evalhub run --model Qwen2.5-7B-Instruct --tasks livecodebench --output-dir $HOME/metrics/code-r1-13k-leetcode2k-taco-grpo/global_step_2048/ -p temperature=0.6
+evalhub eval --tasks livecodebench --solutions $HOME/metrics/code-r1-13k-leetcode2k-taco-grpo/global_step_2048/livecodebench.jsonl --output-dir $HOME/metrics/code-r1-13k-leetcode2k-taco-grpo/global_step_2048/
 ```
