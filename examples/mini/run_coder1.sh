@@ -20,7 +20,7 @@ fi
 # MAIN CONFIG
 MAX_EPOCHS=8
 DATASET=code-r1-13k-leetcode2k-taco
-MODEL_PATH="$HOME/models/Qwen2.5-Coder-7B-Instruct"
+MODEL_PATH="$HOME/models/Qwen2.5-7B-Instruct"
 ROLLOUT_N_SAMPLE=4
 ROLLOUT_N_QUERY=8
 MICRO_BATCH_PER_GPU=8 # * GPUS_PER_NODE -> GLOBAL_BATCH_SIZE
@@ -68,9 +68,9 @@ python3 -m verl.trainer.main_ppo \
     trainer.critic_warmup=0 \
     trainer.logger=['wandb','console'] \
     trainer.project_name='code-r1' \
-    trainer.experiment_name=Qwen2.5-Coder-7B-Instruct-grpo \
+    trainer.experiment_name=Qwen2.5-7B-Instruct-grpo \
     trainer.nnodes=1 \
-    trainer.default_local_dir=$HOME/models/${DATASET}-grpo \
+    trainer.default_local_dir=$HOME/checkpoints/${DATASET}-grpo \
     trainer.n_gpus_per_node=$GPUS_PER_NODE \
     trainer.save_freq=256 \
     trainer.test_freq=16 \
