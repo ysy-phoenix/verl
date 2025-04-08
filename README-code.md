@@ -6,7 +6,7 @@ conda activate verl
 pip install -U pip
 pip install uv
 uv pip install -e .
-uv pip install vllm==0.7.3
+uv pip install vllm==0.8.3
 uv pip install flash-attn --no-build-isolation
 uv pip install wandb IPython matplotlib gpustat hf_transfer
 ```

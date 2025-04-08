@@ -18,27 +18,29 @@ fi
 #    main_ppo.py:main_task - and comment "Role.RefPolicy..." in "role_worker_mapping = ".
 
 # MAIN CONFIG
+export VLLM_USE_V1=1
 MAX_EPOCHS=8
 DATASET=code-r1-13k-leetcode2k-taco
-MODEL_PATH="$HOME/models/Qwen2.5-7B-Instruct"
+MODEL_NAME=Qwen2.5-7B-Instruct
+MODEL_PATH="$HOME/models/$MODEL_NAME"
 ROLLOUT_N_SAMPLE=4
 ROLLOUT_N_QUERY=8
 MICRO_BATCH_PER_GPU=8 # * GPUS_PER_NODE -> GLOBAL_BATCH_SIZE
 GRAD_ACC_STEPS=1
-# GLOBAL_BATCH_SIZE=$(($(($GPUS_PER_NODE * $MICRO_BATCH_PER_GPU)) * $GRAD_ACC_STEPS))
+# # GLOBAL_BATCH_SIZE=$(($(($GPUS_PER_NODE * $MICRO_BATCH_PER_GPU)) * $GRAD_ACC_STEPS))
 GLOBAL_BATCH_SIZE=$(( $GRAD_ACC_STEPS * $MICRO_BATCH_PER_GPU ))
 
-# assert ROLLOUT_N_QUERY * ROLLOUT_N_SAMPLE % GLOBAL_BATCH_SIZE == 0
-TOTAL_SAMPLES=$(( ROLLOUT_N_QUERY * ROLLOUT_N_SAMPLE ))
-if (( TOTAL_SAMPLES % GLOBAL_BATCH_SIZE != 0 )); then
-    echo "Error: (ROLLOUT_N_QUERY * ROLLOUT_N_SAMPLE) must be divisible by GLOBAL_BATCH_SIZE."
-    echo "Currently, ${TOTAL_SAMPLES} is not divisible by ${GLOBAL_BATCH_SIZE}."
-    exit 1
-else
-    echo "Assertion passed: ${TOTAL_SAMPLES} is divisible by ${GLOBAL_BATCH_SIZE}."
-fi
+# # assert ROLLOUT_N_QUERY * ROLLOUT_N_SAMPLE % GLOBAL_BATCH_SIZE == 0
+# TOTAL_SAMPLES=$(( ROLLOUT_N_QUERY * ROLLOUT_N_SAMPLE ))
+# if (( TOTAL_SAMPLES % GLOBAL_BATCH_SIZE != 0 )); then
+#     echo "Error: (ROLLOUT_N_QUERY * ROLLOUT_N_SAMPLE) must be divisible by GLOBAL_BATCH_SIZE."
+#     echo "Currently, ${TOTAL_SAMPLES} is not divisible by ${GLOBAL_BATCH_SIZE}."
+#     exit 1
+# else
+#     echo "Assertion passed: ${TOTAL_SAMPLES} is divisible by ${GLOBAL_BATCH_SIZE}."
+# fi
 
-export VLLM_ATTENTION_BACKEND=XFORMERS
+# export VLLM_ATTENTION_BACKEND=XFORMERS
 
 python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=grpo \
@@ -60,17 +62,19 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.actor.fsdp_config.optimizer_offload=False \
     actor_rollout_ref.rollout.log_prob_micro_batch_size=256 \
     actor_rollout_ref.rollout.name=vllm \
-    actor_rollout_ref.rollout.gpu_memory_utilization=0.5 \
+    actor_rollout_ref.rollout.gpu_memory_utilization=0.7 \
     actor_rollout_ref.rollout.n=$ROLLOUT_N_SAMPLE \
     actor_rollout_ref.ref.log_prob_micro_batch_size=256 \
     actor_rollout_ref.ref.fsdp_config.param_offload=False \
+    actor_rollout_ref.rollout.enforce_eager=False \
+    actor_rollout_ref.rollout.free_cache_engine=False \
     algorithm.kl_ctrl.kl_coef=0.001 \
     trainer.critic_warmup=0 \
     trainer.logger=['wandb','console'] \
     trainer.project_name='code-r1' \
-    trainer.experiment_name=Qwen2.5-7B-Instruct-grpo \
+    trainer.experiment_name=${MODEL_NAME}-grpo-v1 \
     trainer.nnodes=1 \
-    trainer.default_local_dir=$HOME/checkpoints/${DATASET}-grpo \
+    trainer.default_local_dir=$HOME/checkpoints/${MODEL_NAME}-grpo-v1 \
     trainer.n_gpus_per_node=$GPUS_PER_NODE \
     trainer.save_freq=256 \
     trainer.test_freq=16 \
