@@ -104,7 +104,7 @@ class PrimeRewardManager:
         sequences_str = self.tokenizer.batch_decode(response_ids, skip_special_tokens=True)
         ground_truth = [data_item.non_tensor_batch['reward_model']['ground_truth'] for data_item in data]
         data_sources = data.non_tensor_batch['data_source']
-        extra_infos = [data_item.non_tensor_batch.get('extra_info', None) for data_item in data]
+        extra_info = data.non_tensor_batch.get('extra_info', None)
 
         assert len(sequences_str) == len(ground_truth) == len(data_sources)
         try:
@@ -113,7 +113,7 @@ class PrimeRewardManager:
                                              sequences_str,
                                              ground_truth,
                                              data_sources,
-                                             extra_infos,
+                                             extra_info=extra_info,
                                              num_processes=64))
         except asyncio.TimeoutError as e:
             print('Global timeout in reward computing! Setting all as 0.')
@@ -124,7 +124,7 @@ class PrimeRewardManager:
         data.batch['acc'] = torch.tensor(scores, dtype=torch.float32, device=prompt_ids.device)
         return scores
 
-    def __call__(self, data: DataProto):
+    def __call__(self, data: DataProto, return_dict: bool = False):
         """We will expand this function gradually based on the available datasets"""
 
         # If there is rm score, we directly return rm score. Otherwise, we compute via rm_score_fn
@@ -143,7 +143,6 @@ class PrimeRewardManager:
         valid_response_length = data.batch['attention_mask'][:, prompt_length:].sum(dim=-1)
         sequences_str = self.tokenizer.batch_decode(response_ids, skip_special_tokens=True)
         data_sources = data.non_tensor_batch['data_source']
-        extra_info = data.non_tensor_batch.get('extra_info', [None] * len(data_sources))
 
         scores = self.verify(data)
 
@@ -158,4 +157,7 @@ class PrimeRewardManager:
                 already_print_data_sources[data_source] += 1
                 print(sequences_str)
 
-        return reward_tensor
+        if return_dict:
+            return {"reward_tensor": reward_tensor}
+        else:
+            return reward_tensor
