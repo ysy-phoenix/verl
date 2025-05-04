@@ -33,6 +33,7 @@ python examples/data_preprocess/code/coder1.py --root_dir $HOME/data/ # 3 minute
 #     features: ['prompt', 'data_source', 'ability', 'reward_model', 'extra_info'],
 #     num_rows: 750
 # })
+python recipe/r1/data_process.py --local_dir $HOME/data/r1/ --tasks livecodebench
 bash examples/mini/run_coder1.sh
 
 python scripts/model_merger.py --local_dir ~/models/code-r1-13k-leetcode2k-taco-grpo/global_step_2048/actor

@@ -14,7 +14,7 @@ from verl.utils.hdfs_io import copy, makedirs
 from verl.utils.reward_score.code.code_exec import code_exec
 from examples.data_preprocess.code.utils import check_code_with_ast
 
-MAX_PROMPT_LENGTH = 6000
+MAX_PROMPT_LENGTH = 8192
 MAX_CODE_LENGTH = 10000
 N_TESTSET_PER_DATASET = 512  # per dataset
 _EMPTY_RETURN_ = {
@@ -24,6 +24,8 @@ _EMPTY_RETURN_ = {
     "reward_model": None,
     "extra_info": None,
 }
+
+DEBUG = False
 
 
 def get_solution(solutions: list[str]) -> str | None:
@@ -52,7 +54,8 @@ def minimize_stdio(inputs, outputs, max_n_tests=64):
     zipped = sorted(zip(stdin_list, stdout_list), key=lambda x: sys.getsizeof(x[0]))
 
     if not zipped:
-        print("No tests found!")
+        if DEBUG:
+            print("No tests found!")
         return [], []
 
     sorted_stdin, sorted_stdout = zip(*zipped)
@@ -136,9 +139,10 @@ def taco():
 
                 result = code_exec(_check_test)
                 if result["status"] != "accepted":
-                    rich.print(f"[bold red]Test code failed for {source}")
-                    print(_check_test)
-                    print(result["error_message"])
+                    if DEBUG:
+                        rich.print(f"[bold red]Test code failed for {source}")
+                        print(_check_test)
+                        print(result["error_message"])
                     return _EMPTY_RETURN_
                 oracle = json.dumps({"functional": test_code})
                 assert example["starter_code"].strip() != ""
@@ -151,9 +155,10 @@ def taco():
 
                 result = code_exec(code, stdin_list, stdout_list)
                 if result["status"] != "accepted":
-                    rich.print(f"[bold red]Test code failed for {source}")
-                    print(code)
-                    print(result["error_message"])
+                    if DEBUG:
+                        rich.print(f"[bold red]Test code failed for {source}")
+                        print(code)
+                        print(result["error_message"])
                     return _EMPTY_RETURN_
 
                 oracle = json.dumps({"inputs": stdin_list, "outputs": stdout_list})
@@ -167,7 +172,7 @@ def taco():
                 return _EMPTY_RETURN_
 
             return {
-                "data_source": "code",
+                "data_source": "code-r1",
                 "prompt": [
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": prompt},
@@ -194,22 +199,25 @@ def taco():
         num_proc=64,
         remove_columns=dataset.column_names,
     ).filter(lambda x: x != _EMPTY_RETURN_)
-    splits = dataset.train_test_split(
-        test_size=max(1, min(N_TESTSET_PER_DATASET, int(len(dataset) * 0.1))), seed=666
-    )
-    train_dataset = splits["train"]
-    test_dataset = splits["test"]
+    # splits = dataset.train_test_split(
+    #     test_size=max(1, min(N_TESTSET_PER_DATASET, int(len(dataset) * 0.1))), seed=666
+    # )
+    # train_dataset = splits["train"]
+    # test_dataset = splits["test"]
 
-    for t in test_dataset:
-        t["extra_info"]["split"] = "test"
+    # for t in test_dataset:
+    #     t["extra_info"]["split"] = "test"
 
-    return train_dataset, test_dataset
+    return dataset, None
 
 
 def leetcode2k():
     rich.print(Rule("Loading LeetCodeDataset..."))
     dataset = load_dataset(
-        "newfacade/LeetCodeDataset", split="train", trust_remote_code=True
+        "newfacade/LeetCodeDataset",
+        split="train",
+        revision="34803eb64eab1979069ba1f80e7ea474282e28f3",
+        trust_remote_code=True,
     )
 
     # add a row to each data item that represents a unique id
@@ -222,7 +230,7 @@ def leetcode2k():
                 return _EMPTY_RETURN_
 
             return {
-                "data_source": "code",
+                "data_source": "code-r1",
                 "prompt": [
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {
@@ -257,16 +265,16 @@ def leetcode2k():
         num_proc=64,
         remove_columns=dataset.column_names,
     ).filter(lambda x: x != _EMPTY_RETURN_)
-    splits = dataset.train_test_split(
-        test_size=max(1, min(N_TESTSET_PER_DATASET, int(len(dataset) * 0.1))), seed=666
-    )
-    train_dataset = splits["train"]
-    test_dataset = splits["test"]
+    # splits = dataset.train_test_split(
+    #     test_size=max(1, min(N_TESTSET_PER_DATASET, int(len(dataset) * 0.1))), seed=666
+    # )
+    # train_dataset = splits["train"]
+    # test_dataset = splits["test"]
 
-    for t in test_dataset:
-        t["extra_info"]["split"] = "test"
+    # for t in test_dataset:
+    #     t["extra_info"]["split"] = "test"
 
-    return train_dataset, test_dataset
+    return dataset, None
 
 
 if __name__ == "__main__":
@@ -292,20 +300,17 @@ if __name__ == "__main__":
         test_datasets.append(test)
 
     train_dataset = concatenate_datasets(train_datasets).shuffle(seed=666)
-    test_dataset = concatenate_datasets(test_datasets)
+    # test_dataset = concatenate_datasets(test_datasets)
 
     rich.print(Rule("Saving the final dataset"))
     print("Train set:", train_dataset)
-    print("Test set:", test_dataset)
+    # print("Test set:", test_dataset)
 
-    local_dir = os.path.join(
-        root_dir, f"code-r1-{round(len(train_dataset) / 1000)}k-{names}"
-    )
+    local_dir = os.path.join(root_dir, f"code-r1")
     rich.print(f"[bold green]Saving to {local_dir}...")
     train_dataset.to_parquet(os.path.join(local_dir, "train.parquet"))
-    test_dataset.to_parquet(os.path.join(local_dir, "test.parquet"))
+    # test_dataset.to_parquet(os.path.join(local_dir, "test.parquet"))
 
     if hdfs_dir is not None:
         makedirs(hdfs_dir)
-
         copy(src=root_dir, dst=hdfs_dir)

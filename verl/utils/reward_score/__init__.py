@@ -13,6 +13,14 @@
 # limitations under the License.
 # from . import gsm8k, math, prime_math, prime_code
 
+R1_DATA_SOURCE = [
+    "Maxwell-Jia/AIME_2024",
+    "opencompass/cnmo2024_en",
+    "opencompass/cnmo2024_zh",
+    "Idavidrein/gpqa",
+    "livecodebench/code_generation_lite",
+    "livecodebench/code_generation",
+]
 
 def _default_compute_score(data_source, solution_str, ground_truth, extra_info=None):
     if data_source == "openai/gsm8k":
@@ -49,9 +57,13 @@ def _default_compute_score(data_source, solution_str, ground_truth, extra_info=N
         from . import prime_code
 
         res = prime_code.compute_score(solution_str, ground_truth, continuous=True)
-    elif data_source in ['code']:
+    elif data_source in ['code-r1']:
         from . import code
         res = code.compute_score(solution_str, ground_truth, extra_info=extra_info)
+    elif data_source in R1_DATA_SOURCE:
+        from recipe.r1.reward_score import reward_func
+
+        res = reward_func(data_source, solution_str, ground_truth, extra_info=extra_info)
     elif data_source in ['hiyouga/geometry3k']:
         from . import geo3k
 
