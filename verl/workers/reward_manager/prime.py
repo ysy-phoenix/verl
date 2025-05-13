@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import asyncio
+import requests
 from concurrent.futures import ProcessPoolExecutor
 from functools import partial
 from typing import Callable, Optional
@@ -127,6 +128,12 @@ class PrimeRewardManager:
             print(f"Unexpected error in batched reward computing. Setting all as 0.: {e}")
             scores = [0.0 for _ in range(len(sequences_str))]
         data.batch["acc"] = torch.tensor(scores, dtype=torch.float32, device=prompt_ids.device)
+        try:
+            url = "http://localhost:8000/api/v1/health/restart"
+            response = requests.post(url)
+            print(response.json())
+        except Exception as e:
+            print(f"Unexpected error in restarting server: {e}")
         return scores
 
     def __call__(self, data: DataProto, return_dict: bool = False):

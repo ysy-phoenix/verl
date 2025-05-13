@@ -36,7 +36,7 @@ python examples/data_preprocess/code/coder1.py --root_dir $HOME/data/ # 3 minute
 python recipe/r1/data_process.py --local_dir $HOME/data/r1/ --tasks livecodebench
 bash examples/mini/run_coder1.sh
 
-python scripts/model_merger.py --local_dir ~/models/code-r1-13k-leetcode2k-taco-grpo/global_step_2048/actor
+python scripts/model_merger.py --backend fsdp --local_dir ~/checkpoints/code-r1-13k-leetcode2k-taco-grpo/global_step_2048/actor
 python -m sglang_router.launch_server --model-path $HOME/models/code-r1-13k-leetcode2k-taco-grpo/global_step_2048/actor/huggingface/ --dp 4
 
 # Fix evalplus maximum_memory_bytes = min(resource.getrlimit(resource.RLIMIT_STACK)[1], maximum_memory_bytes)
